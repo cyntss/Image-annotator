@@ -22,6 +22,8 @@ import TextFieldsIcon from '@mui/icons-material/TextFields';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 
 const theme = createTheme();
+const DEFAULT_WIDTH = 800;
+const DEFAULT_HEIGHT = 600;
 
 export default function ImageAnnotator() {
   const canvasRef = useRef(null);
@@ -65,7 +67,7 @@ export default function ImageAnnotator() {
     return () => window.removeEventListener('paste', handlePaste);
   }, []);
 
-  useEffect(drawCanvas, [img, undoStack, redoStack, texts]);
+  useEffect(() => drawCanvas(), [img, undoStack, redoStack, texts]);
 
   function fitToScreen(image) {
     const f = Math.min(
@@ -77,19 +79,24 @@ export default function ImageAnnotator() {
   }
 
   function resetHistory(image) {
-    setUndoStack([image]);
+    setUndoStack(image ? [image] : []);
     setRedoStack([]);
     setTexts([]);
   }
 
   function pushState() {
     const canvas = canvasRef.current;
-    const copy = new Image();
-    copy.onload = () => {
-      setUndoStack((us) => [...us, copy]);
-      setRedoStack([]);
-    };
-    copy.src = canvas.toDataURL();
+    requestAnimationFrame(() => {
+      const dataUrl = canvas.toDataURL();
+      const copy = new Image();
+      copy.onload = () => {
+        setUndoStack((us) => [...us, copy]);
+        setRedoStack([]);
+        // Update base image to include new drawing/text
+        setImg(copy);
+      };
+      copy.src = dataUrl;
+    });
   }
 
   function undo() {
@@ -147,12 +154,15 @@ export default function ImageAnnotator() {
 
   function drawCanvas() {
     const canvas = canvasRef.current;
-    if (!canvas || !img) return;
+    if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    canvas.width = img.width;
-    canvas.height = img.height;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, 0, 0);
+    const w = img ? img.width : DEFAULT_WIDTH;
+    const h = img ? img.height : DEFAULT_HEIGHT;
+    canvas.width = w;
+    canvas.height = h;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, w, h);
+    if (img) ctx.drawImage(img, 0, 0);
     if (undoStack.length > 1) {
       const lastState = new Image();
       lastState.src = undoStack[undoStack.length - 1].src;
@@ -166,7 +176,7 @@ export default function ImageAnnotator() {
   }
 
   function startDraw(e) {
-    if (mode !== 'draw' || !img) return;
+    if (mode !== 'draw') return;
     const rect = canvasRef.current.getBoundingClientRect();
     const ctx = canvasRef.current.getContext('2d');
     ctx.strokeStyle = color;
@@ -195,13 +205,11 @@ export default function ImageAnnotator() {
     const rect = canvas.getBoundingClientRect();
     const x0 = (e.clientX - rect.left) / scale;
     const y0 = (e.clientY - rect.top) / scale;
-
     if (mode === 'draw') {
       startDraw(e);
       return;
     }
-
-    if (mode === 'text' && img) {
+    if (mode === 'text') {
       const ctx = canvas.getContext('2d');
       let hit = null;
       for (let i = texts.length - 1; i >= 0; i--) {
@@ -364,8 +372,8 @@ export default function ImageAnnotator() {
             display: 'block',
             maxWidth: '100vw',
             maxHeight: '100vh',
-            width: img ? `${img.width * scale}px` : 'auto',
-            height: img ? `${img.height * scale}px` : 'auto',
+            width: `${DEFAULT_WIDTH * scale}px`,
+            height: `${DEFAULT_HEIGHT * scale}px`,
             border: '1px solid #ccc',
             m: 'auto',
             mt: 2,
