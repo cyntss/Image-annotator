@@ -19,6 +19,7 @@ import RedoIcon from '@mui/icons-material/Redo';
 import CropIcon from '@mui/icons-material/Crop';
 import BrushIcon from '@mui/icons-material/Brush';
 import TextFieldsIcon from '@mui/icons-material/TextFields';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 
 const theme = createTheme();
@@ -92,7 +93,6 @@ export default function ImageAnnotator() {
       copy.onload = () => {
         setUndoStack((us) => [...us, copy]);
         setRedoStack([]);
-        // Update base image to include new drawing/text
         setImg(copy);
       };
       copy.src = dataUrl;
@@ -152,6 +152,12 @@ export default function ImageAnnotator() {
     });
   }
 
+  function resetCanvas() {
+    // Clear everything and reset to blank canvas
+    setImg(null);
+    resetHistory(null);
+  }
+
   function drawCanvas() {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -163,11 +169,6 @@ export default function ImageAnnotator() {
     ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, w, h);
     if (img) ctx.drawImage(img, 0, 0);
-    if (undoStack.length > 1) {
-      const lastState = new Image();
-      lastState.src = undoStack[undoStack.length - 1].src;
-      lastState.onload = () => ctx.drawImage(lastState, 0, 0);
-    }
     texts.forEach((t) => {
       ctx.font = `${t.fontSize}px ${t.fontFamily}`;
       ctx.fillStyle = t.color;
@@ -362,6 +363,11 @@ export default function ImageAnnotator() {
                 </Tooltip>
               </ToggleButton>
             </ToggleButtonGroup>
+            <Tooltip title='Reset Canvas'>
+              <IconButton color='inherit' onClick={resetCanvas}>
+                <RefreshIcon />
+              </IconButton>
+            </Tooltip>
           </Toolbar>
         </AppBar>
         <Box
