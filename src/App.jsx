@@ -196,7 +196,10 @@ export default function ImageAnnotator() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <Box ref={containerRef} tabIndex={0} sx={{ outline: 'none' }}>
-        <AppBar position='static'>
+        <AppBar
+          position='static'
+          sx={{ backgroundColor: '#f5f5f5', color: '#000' }}
+        >
           <Toolbar variant='dense'>
             <input
               type='file'
@@ -252,45 +255,23 @@ export default function ImageAnnotator() {
                 />
               </Tooltip>
             </Box>
-            <FormControl variant='standard' sx={{ minWidth: 120, mx: 2 }}>
-              <InputLabel>Color</InputLabel>
-              <Select
-                value={color}
-                label='Color'
-                onChange={(e) => setColor(e.target.value)}
-                renderValue={(v) => (
-                  <Box
-                    component='span'
-                    sx={{
-                      display: 'inline-block',
-                      width: 24,
-                      height: 24,
-                      bgcolor: v,
-                      border: '1px solid #000',
-                    }}
-                  />
-                )}
-              >
-                {['#000000', '#ff0000', '#00ff00', '#0000ff', '#ffff00'].map(
-                  (c) => (
-                    <MenuItem key={c} value={c}>
-                      <Box
-                        component='span'
-                        sx={{
-                          display: 'inline-block',
-                          width: 24,
-                          height: 24,
-                          bgcolor: c,
-                          border: '1px solid #000',
-                          mr: 1,
-                        }}
-                      />
-                      {c}
-                    </MenuItem>
-                  )
-                )}
-              </Select>
-            </FormControl>
+            <Box sx={{ mx: 2, display: 'flex', alignItems: 'center' }}>
+              <Tooltip title='Pick color'>
+                <input
+                  type='color'
+                  value={color}
+                  onChange={(e) => setColor(e.target.value)}
+                  style={{
+                    width: 32,
+                    height: 32,
+                    border: 'none',
+                    padding: 0,
+                    background: 'none',
+                    cursor: 'pointer',
+                  }}
+                />
+              </Tooltip>
+            </Box>
             <ToggleButtonGroup
               value={mode}
               exclusive
