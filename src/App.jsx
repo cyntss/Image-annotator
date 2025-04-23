@@ -6,10 +6,6 @@ import {
   IconButton,
   Tooltip,
   Slider,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
   Box,
   ToggleButton,
   ToggleButtonGroup,
@@ -41,6 +37,7 @@ export default function ImageAnnotator() {
   const [fontSize, setFontSize] = useState(24);
   const [undoStack, setUndoStack] = useState([]);
   const [redoStack, setRedoStack] = useState([]);
+  const [texts, setTexts] = useState([]);
 
   useEffect(() => {
     const handlePaste = (e) => {
@@ -68,7 +65,7 @@ export default function ImageAnnotator() {
     return () => window.removeEventListener('paste', handlePaste);
   }, []);
 
-  useEffect(drawCanvas, [img, undoStack, redoStack]);
+  useEffect(drawCanvas, [img, undoStack, redoStack, texts]);
 
   function fitToScreen(image) {
     const f = Math.min(
@@ -82,6 +79,7 @@ export default function ImageAnnotator() {
   function resetHistory(image) {
     setUndoStack([image]);
     setRedoStack([]);
+    setTexts([]);
   }
 
   function pushState() {
@@ -155,12 +153,16 @@ export default function ImageAnnotator() {
     canvas.height = img.height;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(img, 0, 0);
-    // replay current top of undoStack if necessary
     if (undoStack.length > 1) {
       const lastState = new Image();
       lastState.src = undoStack[undoStack.length - 1].src;
       lastState.onload = () => ctx.drawImage(lastState, 0, 0);
     }
+    texts.forEach((t) => {
+      ctx.font = `${t.fontSize}px ${t.fontFamily}`;
+      ctx.fillStyle = t.color;
+      ctx.fillText(t.text, t.x, t.y);
+    });
   }
 
   function startDraw(e) {
@@ -188,8 +190,66 @@ export default function ImageAnnotator() {
     window.addEventListener('mouseup', onUp);
   }
 
+  function handleCanvasMouseDown(e) {
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const x0 = (e.clientX - rect.left) / scale;
+    const y0 = (e.clientY - rect.top) / scale;
+
+    if (mode === 'draw') {
+      startDraw(e);
+      return;
+    }
+
+    if (mode === 'text' && img) {
+      const ctx = canvas.getContext('2d');
+      let hit = null;
+      for (let i = texts.length - 1; i >= 0; i--) {
+        const t = texts[i];
+        ctx.font = `${t.fontSize}px ${t.fontFamily}`;
+        const w = ctx.measureText(t.text).width;
+        const h = t.fontSize;
+        if (x0 >= t.x && x0 <= t.x + w && y0 >= t.y - h && y0 <= t.y) {
+          hit = t;
+          break;
+        }
+      }
+      if (hit) {
+        const { id, x: ox, y: oy } = hit;
+        const sx = e.clientX;
+        const sy = e.clientY;
+        function onMove(ev) {
+          const dx = (ev.clientX - sx) / scale;
+          const dy = (ev.clientY - sy) / scale;
+          setTexts((ts) =>
+            ts.map((tt) =>
+              tt.id === id ? { ...tt, x: ox + dx, y: oy + dy } : tt
+            )
+          );
+        }
+        function onUp() {
+          window.removeEventListener('mousemove', onMove);
+          window.removeEventListener('mouseup', onUp);
+          pushState();
+        }
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+      } else {
+        const txt = prompt('Enter text:');
+        if (txt) {
+          const id = Date.now();
+          setTexts((ts) => [
+            ...ts,
+            { id, text: txt, x: x0, y: y0, fontFamily, fontSize, color },
+          ]);
+          pushState();
+        }
+      }
+    }
+  }
+
   function handleModeChange(_, val) {
-    setMode(val);
+    if (val) setMode(val);
   }
 
   return (
@@ -299,7 +359,7 @@ export default function ImageAnnotator() {
         <Box
           component='canvas'
           ref={canvasRef}
-          onMouseDown={startDraw}
+          onMouseDown={handleCanvasMouseDown}
           sx={{
             display: 'block',
             maxWidth: '100vw',
