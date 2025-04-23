@@ -68,7 +68,7 @@ export default function ImageAnnotator() {
     return () => window.removeEventListener('paste', handlePaste);
   }, []);
 
-  useEffect(() => drawCanvas(), [img, undoStack, redoStack, texts]);
+  useEffect(() => drawCanvas(), [img, texts]);
 
   function fitToScreen(image) {
     const f = Math.min(
@@ -158,6 +158,17 @@ export default function ImageAnnotator() {
     resetHistory(null);
   }
 
+  function getCanvasCoords(e) {
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return {
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY,
+    };
+  }
+
   function drawCanvas() {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -178,18 +189,16 @@ export default function ImageAnnotator() {
 
   function startDraw(e) {
     if (mode !== 'draw') return;
-    const rect = canvasRef.current.getBoundingClientRect();
     const ctx = canvasRef.current.getContext('2d');
     ctx.strokeStyle = color;
     ctx.lineWidth = penWidth;
     ctx.lineCap = 'round';
+    const start = getCanvasCoords(e);
     ctx.beginPath();
-    ctx.moveTo((e.clientX - rect.left) / scale, (e.clientY - rect.top) / scale);
+    ctx.moveTo(start.x, start.y);
     function onMove(ev) {
-      ctx.lineTo(
-        (ev.clientX - rect.left) / scale,
-        (ev.clientY - rect.top) / scale
-      );
+      const point = getCanvasCoords(ev);
+      ctx.lineTo(point.x, point.y);
       ctx.stroke();
     }
     function onUp() {
@@ -202,34 +211,37 @@ export default function ImageAnnotator() {
   }
 
   function handleCanvasMouseDown(e) {
-    const canvas = canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    const x0 = (e.clientX - rect.left) / scale;
-    const y0 = (e.clientY - rect.top) / scale;
     if (mode === 'draw') {
       startDraw(e);
       return;
     }
     if (mode === 'text') {
+      const canvas = canvasRef.current;
       const ctx = canvas.getContext('2d');
+      const start = getCanvasCoords(e);
       let hit = null;
       for (let i = texts.length - 1; i >= 0; i--) {
         const t = texts[i];
         ctx.font = `${t.fontSize}px ${t.fontFamily}`;
         const w = ctx.measureText(t.text).width;
         const h = t.fontSize;
-        if (x0 >= t.x && x0 <= t.x + w && y0 >= t.y - h && y0 <= t.y) {
+        if (
+          start.x >= t.x &&
+          start.x <= t.x + w &&
+          start.y >= t.y - h &&
+          start.y <= t.y
+        ) {
           hit = t;
           break;
         }
       }
       if (hit) {
         const { id, x: ox, y: oy } = hit;
-        const sx = e.clientX;
-        const sy = e.clientY;
+        const anchor = getCanvasCoords(e);
         function onMove(ev) {
-          const dx = (ev.clientX - sx) / scale;
-          const dy = (ev.clientY - sy) / scale;
+          const point = getCanvasCoords(ev);
+          const dx = point.x - anchor.x;
+          const dy = point.y - anchor.y;
           setTexts((ts) =>
             ts.map((tt) =>
               tt.id === id ? { ...tt, x: ox + dx, y: oy + dy } : tt
@@ -246,10 +258,11 @@ export default function ImageAnnotator() {
       } else {
         const txt = prompt('Enter text:');
         if (txt) {
+          const { x, y } = start;
           const id = Date.now();
           setTexts((ts) => [
             ...ts,
-            { id, text: txt, x: x0, y: y0, fontFamily, fontSize, color },
+            { id, text: txt, x, y, fontFamily, fontSize, color },
           ]);
           pushState();
         }
